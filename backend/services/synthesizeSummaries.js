@@ -4,7 +4,7 @@ const path = require('path');
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const model = genAI.getGenerativeModel({
-  model: 'gemini-2.5-flash',
+  model: 'gemini-2.5-flash-lite',
   systemInstruction: `You are a senior software architect reviewing a codebase for the first time.
 Given per-file summaries organized by folder, produce a high-level architectural overview.
 Write for an engineer who needs to understand the system quickly before making changes.

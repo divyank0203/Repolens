@@ -5,7 +5,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 
 const model = genAI.getGenerativeModel({
-  model: 'gemini-2.5-flash',
+  model: 'gemini-2.5-flash-lite',
 
   
   systemInstruction: `You are a senior software engineer analyzing a codebase.
@@ -60,7 +60,7 @@ ${partSummaries.map((p, i) => `Part ${i + 1}:\n${p.summary}`).join('\n\n')}
 Write a single unified summary of the complete file in 3-5 sentences.`;
 
 
-  const mergeModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  const mergeModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
   const mergeResult = await mergeModel.generateContent(mergePrompt);
 
   return {
