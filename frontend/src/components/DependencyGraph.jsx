@@ -8,10 +8,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-// Defined OUTSIDE the component so the reference never changes between renders.
-// React Flow compares nodeTypes/edgeTypes by reference — if they're defined
-// inside the component, every render creates a new object and React Flow
-// reinitialises the entire graph each time.
+
 const nodeTypes = {};
 const edgeTypes = {};
 

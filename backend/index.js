@@ -1,3 +1,5 @@
+require('dotenv').config();
+console.log('KEY LOADED:', process.env.GEMINI_API_KEY ? 'YES' : 'NO — KEY IS UNDEFINED');
 const express = require('express');
 const cors = require('cors');
 const repoRoute = require('./routes/repo');

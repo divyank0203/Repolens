@@ -86,14 +86,7 @@ export default function App() {
             ))}
           </div>
 
-          {/*
-            KEY CHANGE: removed the key prop entirely.
-            The old key={JSON.stringify(graphData.nodes.length)} was forcing
-            DependencyGraph to fully unmount and remount on every render,
-            which is exactly what triggers the React Flow warning repeatedly.
-            Instead we let useNodesState/useEdgesState handle data updates
-            naturally — no remount needed.
-          */}
+
           <DependencyGraph
             nodes={graphData.nodes}
             edges={graphData.edges}

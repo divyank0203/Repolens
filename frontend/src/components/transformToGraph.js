@@ -5,10 +5,6 @@ const NODE_HEIGHT = 36;
 
 export function transformToGraph(dependencyMap, direction = 'TB') {
 
-  // ── Step 1: Collect all node ids ──────────────────────────────────────
-  // Keys of dependencyMap are files that import something.
-  // Values may contain files that don't import anything themselves
-  // (leaf nodes). We need both sets or leaf nodes won't appear on the graph.
 
   const nodeIds = new Set(Object.keys(dependencyMap));
 
@@ -18,7 +14,7 @@ export function transformToGraph(dependencyMap, direction = 'TB') {
     }
   }
 
-  // ── Step 2: Build nodes array ─────────────────────────────────────────
+  
 
   const nodes = Array.from(nodeIds).map((filePath) => ({
     id: filePath,
@@ -39,11 +35,6 @@ export function transformToGraph(dependencyMap, direction = 'TB') {
     },
   }));
 
-  // ── Step 3: Build edges array — deduplicated ───────────────────────────
-  // Use a Map keyed by "source→target" so duplicate edges (same file
-  // imported twice via different alias paths that resolve identically)
-  // never produce two entries with the same id.
-  // Duplicate ids cause the React "two children with same key" error.
 
   const edgeMap = new Map();
 
@@ -68,10 +59,7 @@ export function transformToGraph(dependencyMap, direction = 'TB') {
 
   const edges = Array.from(edgeMap.values());
 
-  // ── Step 4: Configure dagre graph ─────────────────────────────────────
-
-  // Always a fresh instance — reusing one across calls accumulates
-  // stale nodes and edges from previous repos.
+ 
   const g = new dagre.graphlib.Graph();
 
   g.setGraph({
@@ -86,9 +74,6 @@ export function transformToGraph(dependencyMap, direction = 'TB') {
 
   g.setDefaultEdgeLabel(() => ({}));
 
-  // ── Step 5: Register nodes with exact pixel dimensions ────────────────
-  // These must match the rendered size. If they don't, dagre's spacing
-  // is computed on wrong dimensions and nodes visually overlap.
 
   nodes.forEach((node) => {
     g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
@@ -98,14 +83,11 @@ export function transformToGraph(dependencyMap, direction = 'TB') {
     g.setEdge(edge.source, edge.target);
   });
 
-  // ── Step 6: Run layout ────────────────────────────────────────────────
+
 
   dagre.layout(g);
 
-  // ── Step 7: Write positions back — centre → top-left conversion ───────
-  // dagre gives the centre point of each node.
-  // React Flow expects the top-left corner.
-  // Without this offset, edges visually detach from node borders.
+
 
   const layoutedNodes = nodes.map((node) => {
     const dagreNode = g.node(node.id);

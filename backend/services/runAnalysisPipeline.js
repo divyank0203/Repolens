@@ -5,15 +5,10 @@ const { synthesizeSummaries } = require('./synthesizeSummaries');
 
 const PARSEABLE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs']);
 
-// How many files to summarize concurrently.
-// Too high = rate limit errors from the API.
-// Too low = slow pipeline on large repos.
+
 const CONCURRENCY = 5;
 
-/**
- * Flattens the scanned file tree into an array of absolute file paths.
- * Identical to the one in buildDependencyMap.js — candidate for a shared util later.
- */
+
 function flattenTree(tree, basePath) {
   const files = [];
   for (const node of tree) {
@@ -46,15 +41,12 @@ async function withRetry(fn, retries = 3, delayMs = 10000) {
   }
 }
 
-/**
- * Processes an array of promises in batches of `concurrency`.
- * Unlike Promise.all(), this prevents firing 200 API calls at once.
- */
+
 async function runInBatches(items, concurrency, asyncFn) {
   const results = [];
   for (let i = 0; i < items.length; i += concurrency) {
     const batch = items.slice(i, i + concurrency);
-    // Process this batch fully before starting the next
+    
     const batchResults = await Promise.all(
         batch.map(item => withRetry(() => asyncFn(item)))
     );
@@ -64,14 +56,7 @@ async function runInBatches(items, concurrency, asyncFn) {
   return results;
 }
 
-/**
- * Main pipeline entry point.
- *
- * Stage 1: flatten tree → filter to JS/TS files → chunk each file
- * Stage 2: LLM summarize each file (batched, with concurrency limit)
- * Stage 3: group summaries by folder (pure data transform, no LLM)
- * Stage 4: LLM synthesize all summaries into architecture overview
- */
+
 async function runAnalysisPipeline(repoRoot, fileTree, repoUrl) {
   console.log('\n=== RepoLens AI Pipeline ===');
 
