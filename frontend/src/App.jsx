@@ -203,7 +203,7 @@ export default function App() {
                 background: direction === d ? '#6366f1' : '#1e293b',
                 color: '#e2e8f0', border: '1px solid #334155', cursor: 'pointer',
               }}>
-                {d === 'TB' ? '↕ Top-Down' : '↔ Left-Right'}
+                {d === 'TB' ? '↔ Left-Right' : '↕ Top-Down'}
               </button>
             ))}
           </div>

@@ -63,18 +63,31 @@ function parseFile(filePath) {
 function collectDynamicImports(node, imports) {
   if (!node || typeof node !== 'object') return;
 
+  //  Handle dynamic import()
   if (
     node.type === 'CallExpression' &&
-    node.callee.type === 'Import' &&       // the "import" keyword used as a function
+    node.callee.type === 'Import' &&
     node.arguments.length > 0 &&
-    node.arguments[0].type === 'StringLiteral' 
+    node.arguments[0].type === 'StringLiteral'
   ) {
     imports.push(node.arguments[0].value);
   }
 
-  
+  // Handle require()
+  if (
+    node.type === 'CallExpression' &&
+    node.callee.type === 'Identifier' &&
+    node.callee.name === 'require' &&
+    node.arguments.length === 1 &&
+    node.arguments[0].type === 'StringLiteral'
+  ) {
+    imports.push(node.arguments[0].value);
+  }
+
+  // Continue traversal
   for (const key of Object.keys(node)) {
     const child = node[key];
+
     if (Array.isArray(child)) {
       child.forEach(c => collectDynamicImports(c, imports));
     } else if (child && typeof child === 'object' && child.type) {
