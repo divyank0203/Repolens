@@ -16,11 +16,7 @@ export default function DependencyGraph({ nodes: initialNodes, edges: initialEdg
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [selectedId, setSelectedId] = useState(null);
 
-  // FIX 1 — TOGGLE:
-  // Previously graphKey was only node ids, so direction changes
-  // (which change positions but not ids) never triggered the effect.
-  // Now we include the first node's position so any layout change
-  // causes the effect to fire and sync new positions into RF state.
+
   const graphKey = useMemo(() => {
     const ids = initialNodes.map(n => n.id).join(',');
     const firstPos = initialNodes[0]
@@ -57,11 +53,7 @@ export default function DependencyGraph({ nodes: initialNodes, edges: initialEdg
       initialEdges.filter(e => e.target === clickedId).map(e => e.source)
     );
 
-    // FIX 2 — NODE WIDTH:
-    // Previously setNodes only spread ...node and then set style,
-    // which caused React Flow to lose the top-level width property.
-    // Now we explicitly preserve node.width on every node in the map
-    // so the box never shrinks back after a click.
+  
     setNodes(initialNodes.map(node => {
       let style = {};
 
