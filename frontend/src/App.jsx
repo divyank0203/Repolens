@@ -1,12 +1,15 @@
 import { useState } from 'react';
+import { useMemo } from "react";
 import RepoInput from './components/RepoInput';
 import DependencyGraph from './components/DependencyGraph';
 import { transformToGraph } from './components/transformToGraph';
 
 export default function App() {
-  const [graphData, setGraphData] = useState(null);
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState(null);
+  const [graphData, setGraphData]           = useState(null);
+  const [rawDependencyMap, setRawDependencyMap] = useState(null);
+  const [loading, setLoading]               = useState(false);
+  const [error, setError]                   = useState(null);
+  const [direction, setDirection]           = useState('TB');
 
   async function handleAnalyze(repoUrl) {
     if (!repoUrl) return;
@@ -27,17 +30,20 @@ export default function App() {
       }
 
       const data = await res.json();
-
-      // Transform backend output into React Flow format
-      // This is the only place transformToGraph is called —
-      // we do it once and store the result, not on every render
-      const graph = transformToGraph(data.dependencyMap);
-      setGraphData(graph);
+      setRawDependencyMap(data.dependencyMap);
+      setGraphData(transformToGraph(data.dependencyMap, 'TB'));
 
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  function handleDirectionChange(newDirection) {
+    setDirection(newDirection);
+    if (rawDependencyMap) {
+      setGraphData(transformToGraph(rawDependencyMap, newDirection));
     }
   }
 
@@ -58,11 +64,37 @@ export default function App() {
       )}
 
       {graphData && (
-        // key prop forces React Flow to fully remount when graph data changes
-        // without it, React Flow's internal store gets confused on re-analysis
         <div style={{ flex: 1, position: 'relative' }}>
+
+          {/* Direction toggle */}
+          <div style={{
+            position: 'absolute', top: 10, right: 16, zIndex: 10,
+            display: 'flex', gap: 6,
+          }}>
+            {['TB', 'LR'].map(d => (
+              <button
+                key={d}
+                onClick={() => handleDirectionChange(d)}
+                style={{
+                  padding: '4px 12px', borderRadius: 6, fontSize: 12,
+                  background: direction === d ? '#6366f1' : '#1e293b',
+                  color: '#e2e8f0', border: '1px solid #334155', cursor: 'pointer',
+                }}
+              >
+                {d === 'TB' ? '↕ Top-Down' : '↔ Left-Right'}
+              </button>
+            ))}
+          </div>
+
+          {/*
+            KEY CHANGE: removed the key prop entirely.
+            The old key={JSON.stringify(graphData.nodes.length)} was forcing
+            DependencyGraph to fully unmount and remount on every render,
+            which is exactly what triggers the React Flow warning repeatedly.
+            Instead we let useNodesState/useEdgesState handle data updates
+            naturally — no remount needed.
+          */}
           <DependencyGraph
-            key={JSON.stringify(graphData.nodes.length)}
             nodes={graphData.nodes}
             edges={graphData.edges}
           />

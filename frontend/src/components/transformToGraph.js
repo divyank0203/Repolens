@@ -1,92 +1,119 @@
 import dagre from 'dagre';
 
-const NODE_WIDTH = 180;
-const NODE_HEIGHT = 44;
+const NODE_WIDTH  = 172;
+const NODE_HEIGHT = 36;
 
-/**
- * Takes the raw dependencyMap from the backend and returns
- * { nodes, edges } ready for React Flow.
- *
- * dependencyMap shape:
- *   { "src/App.js": ["src/utils.js", "src/api.js"], ... }
- */
-export function transformToGraph(dependencyMap) {
-  // --- Step 1: Build nodes and edges arrays ---
+export function transformToGraph(dependencyMap, direction = 'TB') {
 
-  const nodes = Object.keys(dependencyMap).map((filePath) => ({
+  // ── Step 1: Collect all node ids ──────────────────────────────────────
+  // Keys of dependencyMap are files that import something.
+  // Values may contain files that don't import anything themselves
+  // (leaf nodes). We need both sets or leaf nodes won't appear on the graph.
+
+  const nodeIds = new Set(Object.keys(dependencyMap));
+
+  for (const deps of Object.values(dependencyMap)) {
+    for (const dep of deps) {
+      nodeIds.add(dep);
+    }
+  }
+
+  // ── Step 2: Build nodes array ─────────────────────────────────────────
+
+  const nodes = Array.from(nodeIds).map((filePath) => ({
     id: filePath,
-    // data.label is what React Flow renders inside the node box
     data: {
-      label: filePath.split('/').pop(), // just the filename, not full path
-      fullPath: filePath,               // keep full path for tooltip/click
+      label: filePath.split('/').pop(),
+      fullPath: filePath,
     },
-    // position is temporary — dagre will overwrite these with real coords
-    position: { x: 0, y: 0 },
+    position: { x: 0, y: 0 }, // dagre overwrites this below
     type: 'default',
+    style: {
+      background: '#1e293b',
+      color: '#e2e8f0',
+      border: '1px solid #334155',
+      borderRadius: '6px',
+      fontSize: '11px',
+      padding: '4px 10px',
+      width: NODE_WIDTH,
+    },
   }));
 
-  // Collect all unique file ids so we can add nodes that appear
-  // only as dependencies but not as keys (e.g. a leaf file with no imports)
-  const nodeIds = new Set(nodes.map(n => n.id));
+  // ── Step 3: Build edges array — deduplicated ───────────────────────────
+  // Use a Map keyed by "source→target" so duplicate edges (same file
+  // imported twice via different alias paths that resolve identically)
+  // never produce two entries with the same id.
+  // Duplicate ids cause the React "two children with same key" error.
 
-  const edges = [];
+  const edgeMap = new Map();
 
   for (const [source, deps] of Object.entries(dependencyMap)) {
     for (const target of deps) {
-      // Only add edge if target is a known node in our map
-      // (avoids dangling edges to unresolved files)
       if (!nodeIds.has(target)) continue;
 
-      edges.push({
-        id: `${source}→${target}`,  // must be unique
+      const edgeId = `${source}→${target}`;
+
+      if (edgeMap.has(edgeId)) continue; // skip exact duplicates
+
+      edgeMap.set(edgeId, {
+        id: edgeId,
         source,
         target,
-        // animated: true gives the flowing dashes look
+        type: 'smoothstep',
         animated: false,
-        style: { stroke: '#94a3b8', strokeWidth: 1.5 },
+        style: { stroke: '#475569', strokeWidth: 1.5 },
       });
     }
   }
 
-  // --- Step 2: Run Dagre layout ---
-  // Dagre computes proper x,y for each node in a directed graph
-  // so files that import others appear above their dependencies
+  const edges = Array.from(edgeMap.values());
 
+  // ── Step 4: Configure dagre graph ─────────────────────────────────────
+
+  // Always a fresh instance — reusing one across calls accumulates
+  // stale nodes and edges from previous repos.
   const g = new dagre.graphlib.Graph();
 
   g.setGraph({
-    rankdir: 'TB',   // TB = top to bottom. LR = left to right if you prefer
-    nodesep: 60,     // horizontal gap between nodes in the same rank
-    ranksep: 80,     // vertical gap between ranks (dependency levels)
-    marginx: 40,
-    marginy: 40,
+    rankdir:   direction, // 'TB' = top→bottom, 'LR' = left→right
+    nodesep:   50,        // gap between nodes in the same rank
+    ranksep:   80,        // gap between ranks
+    marginx:   30,
+    marginy:   30,
+    acyclicer: 'greedy',          // handles circular imports gracefully
+    ranker:    'network-simplex', // best general-purpose ranker in dagre
   });
 
-  // Dagre needs a default edge label — empty string means no label
   g.setDefaultEdgeLabel(() => ({}));
 
-  // Register every node with its dimensions
+  // ── Step 5: Register nodes with exact pixel dimensions ────────────────
+  // These must match the rendered size. If they don't, dagre's spacing
+  // is computed on wrong dimensions and nodes visually overlap.
+
   nodes.forEach((node) => {
     g.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
   });
 
-  // Register every edge
   edges.forEach((edge) => {
     g.setEdge(edge.source, edge.target);
   });
 
-  // Run the layout algorithm — mutates the graph object in place
+  // ── Step 6: Run layout ────────────────────────────────────────────────
+
   dagre.layout(g);
 
-  // Write the computed positions back into our nodes array
+  // ── Step 7: Write positions back — centre → top-left conversion ───────
+  // dagre gives the centre point of each node.
+  // React Flow expects the top-left corner.
+  // Without this offset, edges visually detach from node borders.
+
   const layoutedNodes = nodes.map((node) => {
-    const { x, y } = g.node(node.id);
+    const dagreNode = g.node(node.id);
     return {
       ...node,
       position: {
-        // Dagre gives us the center point; React Flow wants top-left corner
-        x: x - NODE_WIDTH / 2,
-        y: y - NODE_HEIGHT / 2,
+        x: dagreNode.x - NODE_WIDTH  / 2,
+        y: dagreNode.y - NODE_HEIGHT / 2,
       },
     };
   });

@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import ReactFlow, {
   Background,
   Controls,
@@ -8,19 +8,28 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
+// Defined OUTSIDE the component so the reference never changes between renders.
+// React Flow compares nodeTypes/edgeTypes by reference — if they're defined
+// inside the component, every render creates a new object and React Flow
+// reinitialises the entire graph each time.
+const nodeTypes = {};
+const edgeTypes = {};
+
 export default function DependencyGraph({ nodes: initialNodes, edges: initialEdges }) {
-  
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  
+useEffect(() => {
+  setNodes(initialNodes);
+  setEdges(initialEdges);
+  setSelectedId(null);
+}, [initialNodes, initialEdges]);
+
   const [selectedId, setSelectedId] = useState(null);
 
-  
   const onNodeClick = useCallback((event, clickedNode) => {
     const clickedId = clickedNode.id;
 
-   
     if (clickedId === selectedId) {
       setSelectedId(null);
       resetStyles(setNodes, setEdges, initialNodes, initialEdges);
@@ -29,27 +38,22 @@ export default function DependencyGraph({ nodes: initialNodes, edges: initialEdg
 
     setSelectedId(clickedId);
 
-    
     const importedIds = new Set(
       initialEdges
         .filter(e => e.source === clickedId)
         .map(e => e.target)
     );
 
-    
     const importedByIds = new Set(
       initialEdges
         .filter(e => e.target === clickedId)
         .map(e => e.source)
     );
 
-    
     setNodes(initialNodes.map(node => {
       let style = {};
-      let className = '';
 
       if (node.id === clickedId) {
-        
         style = {
           background: '#6366f1',
           color: '#fff',
@@ -57,7 +61,6 @@ export default function DependencyGraph({ nodes: initialNodes, edges: initialEdg
           borderRadius: '8px',
         };
       } else if (importedIds.has(node.id)) {
-        
         style = {
           background: '#0d9488',
           color: '#fff',
@@ -65,7 +68,6 @@ export default function DependencyGraph({ nodes: initialNodes, edges: initialEdg
           borderRadius: '8px',
         };
       } else if (importedByIds.has(node.id)) {
-        
         style = {
           background: '#d97706',
           color: '#fff',
@@ -73,14 +75,12 @@ export default function DependencyGraph({ nodes: initialNodes, edges: initialEdg
           borderRadius: '8px',
         };
       } else {
-    
         style = { opacity: 0.2 };
       }
 
       return { ...node, style };
     }));
 
-    
     setEdges(initialEdges.map(edge => {
       const isRelevant =
         edge.source === clickedId || edge.target === clickedId;
@@ -100,15 +100,16 @@ export default function DependencyGraph({ nodes: initialNodes, edges: initialEdg
       <ReactFlow
         nodes={nodes}
         edges={edges}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
-        
         onPaneClick={() => {
           setSelectedId(null);
           resetStyles(setNodes, setEdges, initialNodes, initialEdges);
         }}
-        fitView                   
+        fitView
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.1}
         maxZoom={2}
@@ -121,7 +122,6 @@ export default function DependencyGraph({ nodes: initialNodes, edges: initialEdg
         />
       </ReactFlow>
 
-      {/* Legend */}
       <div style={{
         position: 'absolute', bottom: 80, left: 16,
         background: '#1e293b', border: '1px solid #334155',
@@ -137,7 +137,6 @@ export default function DependencyGraph({ nodes: initialNodes, edges: initialEdg
   );
 }
 
-// Helper: reset all nodes and edges back to their default appearance
 function resetStyles(setNodes, setEdges, initialNodes, initialEdges) {
   setNodes(initialNodes.map(n => ({ ...n, style: {} })));
   setEdges(initialEdges.map(e => ({
