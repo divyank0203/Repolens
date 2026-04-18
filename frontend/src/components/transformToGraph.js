@@ -2,7 +2,8 @@ import dagre from 'dagre';
 
 const NODE_HEIGHT = 36;
 
-export function transformToGraph(dependencyMap, direction = 'TB') {
+// entryPoints is an optional Set of file paths
+export function transformToGraph(dependencyMap, direction = 'TB', entryPoints = new Set()) {
 
   const nodeIds = new Set(Object.keys(dependencyMap));
   for (const deps of Object.values(dependencyMap)) {
@@ -10,31 +11,27 @@ export function transformToGraph(dependencyMap, direction = 'TB') {
   }
 
   const nodes = Array.from(nodeIds).map((filePath) => {
-    const label = filePath.split('/').pop();
-
-    // Use full path length for width estimation since the node
-    // displays the full path (backslash paths need more space)
-    const charCount = label.length;
-    const estimatedWidth = Math.max(charCount * 8 + 32, 130);
+    const label          = filePath.split('/').pop();
+    const estimatedWidth = Math.max(label.length * 8 + 32, 130);
+    const isEntry        = entryPoints.has(filePath);
 
     return {
       id: filePath,
-      data: { label, fullPath: filePath },
+      data: { label, fullPath: filePath, isEntry },
       position: { x: 0, y: 0 },
       type: 'default',
-      // TOP-LEVEL width — this is what React Flow actually uses
-      // to size the node box. Without this, RF ignores style.width.
       width: estimatedWidth,
       style: {
-        background: '#1e293b',
-        color: '#e2e8f0',
-        border: '1px solid #334155',
-        borderRadius: '6px',
+        background: isEntry ? '#1e1b4b' : '#1e293b',
+        color: isEntry ? '#a5b4fc' : '#e2e8f0',
+        // entry points get a purple border + slightly thicker ring
+        border: isEntry ? '2px solid #6366f1' : '1px solid #334155',
+        borderRadius: isEntry ? '8px' : '6px',
         fontSize: '11px',
         padding: '4px 14px',
         whiteSpace: 'nowrap',
-        width: estimatedWidth,      // keeps style in sync
-        minWidth: estimatedWidth,   // prevents RF from shrinking it
+        width: estimatedWidth,
+        minWidth: estimatedWidth,
       },
     };
   });
@@ -59,26 +56,20 @@ export function transformToGraph(dependencyMap, direction = 'TB') {
 
   const g = new dagre.graphlib.Graph();
   g.setGraph({
-    rankdir:   direction,
-    nodesep:   60,
-    ranksep:   80,
-    marginx:   30,
-    marginy:   30,
-    acyclicer: 'greedy',
-    ranker:    'network-simplex',
+    rankdir: direction, nodesep: 60, ranksep: 80,
+    marginx: 30, marginy: 30,
+    acyclicer: 'greedy', ranker: 'network-simplex',
   });
   g.setDefaultEdgeLabel(() => ({}));
 
-  nodes.forEach((node) => {
+  nodes.forEach(node => {
     g.setNode(node.id, { width: node.width, height: NODE_HEIGHT });
   });
-  edges.forEach((edge) => {
-    g.setEdge(edge.source, edge.target);
-  });
+  edges.forEach(edge => g.setEdge(edge.source, edge.target));
 
   dagre.layout(g);
 
-  const layoutedNodes = nodes.map((node) => {
+  const layoutedNodes = nodes.map(node => {
     const dagreNode = g.node(node.id);
     return {
       ...node,

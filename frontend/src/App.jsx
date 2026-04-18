@@ -15,6 +15,7 @@ export default function App() {
   const [summaryLoading, setSummaryLoading]     = useState(false);
   const [error, setError]                       = useState(null);
   const [direction, setDirection]               = useState('TB');
+  const [entryPoints, setEntryPoints] = useState([]);
 
   // Search + filter state
   const [searchQuery, setSearchQuery]         = useState('');
@@ -73,11 +74,11 @@ export default function App() {
     return filteredNodeIds.size;
   }, [graphData, filteredNodeIds]);
 
-  function buildGraph(depMap, dir) {
-    const graph = transformToGraph(depMap, dir);
-    const enrichedNodes = attachCounts(graph.nodes, graph.edges);
-    return { nodes: enrichedNodes, edges: graph.edges };
-  }
+function buildGraph(depMap, dir, epSet = new Set()) {
+  const graph = transformToGraph(depMap, dir, epSet);
+  const enrichedNodes = attachCounts(graph.nodes, graph.edges);
+  return { nodes: enrichedNodes, edges: graph.edges };
+}
 
   async function handleAnalyze(repoUrl) {
     if (!repoUrl) return;
@@ -91,6 +92,7 @@ export default function App() {
     setActiveFolder('');
     setMinConnections(0);
 
+    setEntryPoints([]);
     try {
       const res = await fetch('http://localhost:3001/api/repo/analyze', {
         method: 'POST',
@@ -100,7 +102,9 @@ export default function App() {
       if (!res.ok) throw new Error((await res.json()).error || 'Server error');
       const data = await res.json();
       setRawDependencyMap(data.dependencyMap);
-      setGraphData(buildGraph(data.dependencyMap, direction));
+      setEntryPoints(data.entryPoints || []); 
+      const epSet = new Set(data.entryPoints || []);
+      setGraphData(buildGraph(data.dependencyMap, direction, epSet));
     } catch (e) {
       setError(e.message);
     } finally {
@@ -129,13 +133,13 @@ export default function App() {
     }
   }
 
-  function handleDirectionChange(newDirection) {
-    setDirection(newDirection);
-    if (rawDependencyMap) {
-      setGraphData(buildGraph(rawDependencyMap, newDirection));
-      setSelectedNode(null);
-    }
+function handleDirectionChange(newDirection) {
+  setDirection(newDirection);
+  if (rawDependencyMap) {
+    setGraphData(buildGraph(rawDependencyMap, newDirection, new Set(entryPoints)));
+    setSelectedNode(null);
   }
+}
 
   return (
     <div style={{
@@ -217,13 +221,14 @@ export default function App() {
           />
 
           {(selectedNode || architectureOverview) && (
-            <SummaryPanel
-              node={selectedNode}
-              summary={selectedSummary}
-              architectureOverview={architectureOverview}
-              summaryLoading={summaryLoading}
-              onClose={() => setSelectedNode(null)}
-            />
+              <SummaryPanel
+                node={selectedNode}
+                summary={selectedSummary}
+                architectureOverview={architectureOverview}
+                summaryLoading={summaryLoading}
+                entryPoints={entryPoints}
+                onClose={() => setSelectedNode(null)}
+              />
           )}
         </div>
       )}

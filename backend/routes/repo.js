@@ -5,6 +5,7 @@ const { scanDirectory } = require('../services/scanDirectory');
 const { buildDependencyMap } = require('../services/buildDependencyMap');
 const { parseFile } = require('../services/parseFile');
 const { runAnalysisPipeline } = require('../services/runAnalysisPipeline');
+const { detectEntryPoints } = require('../services/detectEntryPoints');
 
 router.post('/', async (req, res) => {
   const { repoUrl } = req.body;
@@ -38,20 +39,20 @@ router.post('/', async (req, res) => {
 
 router.post('/analyze', async (req, res) => {
   const { repoUrl } = req.body;
-
   if (!repoUrl || !repoUrl.startsWith('https://github.com')) {
     return res.status(400).json({ error: 'A valid GitHub HTTPS URL is required.' });
   }
-
   try {
-    const clonedPath = await cloneRepo(repoUrl);
-    const fileTree = scanDirectory(clonedPath);
-    const dependencyMap = buildDependencyMap(clonedPath, fileTree);
+    const clonedPath      = await cloneRepo(repoUrl);
+    const fileTree        = scanDirectory(clonedPath);
+    const dependencyMap   = buildDependencyMap(clonedPath, fileTree);
+    const entryPoints     = detectEntryPoints(clonedPath, dependencyMap); 
 
     return res.json({
       repoUrl,
       tree: fileTree,
       dependencyMap,
+      entryPoints, // array of relative file paths
     });
   } catch (err) {
     console.error(err);
