@@ -4,37 +4,7 @@ import DependencyGraph from './components/DependencyGraph';
 import { transformToGraph } from './components/transformToGraph';
 
 export default function App() {
-
-const [direction, setDirection] = useState('TB');
-
-
-<div style={{
-  position: 'absolute', top: 10, right: 16, zIndex: 10,
-  display: 'flex', gap: 6,
-}}>
-  {['TB', 'LR'].map(d => (
-    <button
-      key={d}
-      onClick={() => {
-        setDirection(d);
-        if (rawDependencyMap) {
-          setGraphData(transformToGraph(rawDependencyMap, d));
-        }
-      }}
-      style={{
-        padding: '4px 12px', borderRadius: 6, fontSize: 12,
-        background: direction === d ? '#6366f1' : '#1e293b',
-        color: '#e2e8f0', border: '1px solid #334155', cursor: 'pointer',
-      }}
-    >
-      {d === 'TB' ? '↕ Top-Down' : '↔ Left-Right'}
-    </button>
-  ))}
-</div>
-
-
   const [graphData, setGraphData] = useState(null);
-  const [rawDependencyMap, setRawDependencyMap] = useState(null);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState(null);
 
@@ -57,11 +27,11 @@ const [direction, setDirection] = useState('TB');
       }
 
       const data = await res.json();
-      
-      setRawDependencyMap(data.dependencyMap);
-      setGraphData(transformToGraph(data.dependencyMap, direction));  
-      const graph = transformToGraph(data.dependencyMap, 'TB');
-      
+
+      // Transform backend output into React Flow format
+      // This is the only place transformToGraph is called —
+      // we do it once and store the result, not on every render
+      const graph = transformToGraph(data.dependencyMap);
       setGraphData(graph);
 
     } catch (e) {
@@ -88,7 +58,8 @@ const [direction, setDirection] = useState('TB');
       )}
 
       {graphData && (
-        
+        // key prop forces React Flow to fully remount when graph data changes
+        // without it, React Flow's internal store gets confused on re-analysis
         <div style={{ flex: 1, position: 'relative' }}>
           <DependencyGraph
             key={JSON.stringify(graphData.nodes.length)}
