@@ -8,6 +8,7 @@ export default function App() {
   const [graphData, setGraphData]               = useState(null);
   const [rawDependencyMap, setRawDependencyMap] = useState(null);
   const [fileSummaries, setFileSummaries]       = useState([]);
+  const [architectureOverview, setArchitectureOverview] = useState(''); // NEW
   const [selectedNode, setSelectedNode]         = useState(null);
   const [loading, setLoading]                   = useState(false);
   const [summaryLoading, setSummaryLoading]     = useState(false);
@@ -24,8 +25,6 @@ export default function App() {
     ? summaryMap[selectedNode.data.fullPath] ?? null
     : null;
 
-  // Shared helper — builds graph + attaches counts in one place
-  // Both handleAnalyze and handleDirectionChange call this
   function buildGraph(depMap, dir) {
     const graph = transformToGraph(depMap, dir);
     const enrichedNodes = attachCounts(graph.nodes, graph.edges);
@@ -38,6 +37,7 @@ export default function App() {
     setError(null);
     setGraphData(null);
     setFileSummaries([]);
+    setArchitectureOverview(''); // NEW — reset on new repo
     setSelectedNode(null);
 
     try {
@@ -47,11 +47,9 @@ export default function App() {
         body: JSON.stringify({ repoUrl }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Server error');
-
       const data = await res.json();
       setRawDependencyMap(data.dependencyMap);
       setGraphData(buildGraph(data.dependencyMap, direction));
-
     } catch (e) {
       setError(e.message);
     } finally {
@@ -72,14 +70,14 @@ export default function App() {
       if (!res.ok) return;
       const data = await res.json();
       setFileSummaries(data.fileSummaries || []);
+      setArchitectureOverview(data.architectureOverview || ''); // NEW
     } catch {
-      // fail silently — graph works without summaries
+      // fail silently
     } finally {
       setSummaryLoading(false);
     }
   }
 
-  
   function handleDirectionChange(newDirection) {
     setDirection(newDirection);
     if (rawDependencyMap) {
@@ -124,7 +122,7 @@ export default function App() {
 
           <div style={{
             position: 'absolute', top: 10,
-            right: selectedNode ? 356 : 16,
+            right: (selectedNode || architectureOverview) ? 356 : 16,
             zIndex: 10, display: 'flex', gap: 6,
           }}>
             {['TB', 'LR'].map(d => (
@@ -144,11 +142,16 @@ export default function App() {
             onNodeSelect={setSelectedNode}
           />
 
-          <SummaryPanel
-            node={selectedNode}
-            summary={selectedSummary}
-            onClose={() => setSelectedNode(null)}
-          />
+          {/* Panel is open if a node is selected OR overview is available */}
+          {(selectedNode || architectureOverview) && (
+            <SummaryPanel
+              node={selectedNode}
+              summary={selectedSummary}
+              architectureOverview={architectureOverview}
+              summaryLoading={summaryLoading}
+              onClose={() => setSelectedNode(null)}
+            />
+          )}
         </div>
       )}
 
@@ -165,12 +168,10 @@ export default function App() {
 function attachCounts(nodes, edges) {
   const importCount     = {};
   const importedByCount = {};
-
   for (const edge of edges) {
     importCount[edge.source]     = (importCount[edge.source]     || 0) + 1;
     importedByCount[edge.target] = (importedByCount[edge.target] || 0) + 1;
   }
-
   return nodes.map(node => ({
     ...node,
     data: {
