@@ -185,6 +185,4 @@ This approach stays well within token limits and keeps each call focused, which 
 
 ---
 
-## License
 
-MIT
