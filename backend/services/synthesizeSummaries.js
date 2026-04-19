@@ -1,17 +1,8 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const Groq = require('groq-sdk');
 const path = require('path');
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const model = genAI.getGenerativeModel({
-  model: 'gemini-2.5-flash-lite',
-  systemInstruction: `You are a senior software architect reviewing a codebase for the first time.
-Given per-file summaries organized by folder, produce a high-level architectural overview.
-Write for an engineer who needs to understand the system quickly before making changes.
-Use plain text with minimal markdown. Be specific — name actual files, functions, and data flows.`,
-});
-
-// These two pure helper functions are unchanged from Phase 4
 function groupByFolder(fileSummaries) {
   const groups = {};
   for (const { filePath, summary } of fileSummaries) {
@@ -34,7 +25,20 @@ async function synthesizeSummaries(fileSummaries, repoUrl) {
   const groups = groupByFolder(fileSummaries);
   const formattedGroups = formatGroupsForPrompt(groups);
 
-  const prompt = `Repository: ${repoUrl}
+  const response = await groq.chat.completions.create({
+    model: 'llama-3.1-8b-instant',
+    max_tokens: 1024,
+    messages: [
+      {
+        role: 'system',
+        content: `You are a senior software architect reviewing a codebase for the first time.
+Given per-file summaries organized by folder, produce a high-level architectural overview.
+Write for an engineer who needs to understand the system quickly before making changes.
+Use plain text with minimal markdown. Be specific — name actual files, functions, and data flows.`
+      },
+      {
+        role: 'user',
+        content: `Repository: ${repoUrl}
 
 Per-file summaries grouped by folder:
 
@@ -45,10 +49,12 @@ Write an architectural overview covering:
 2. The main layers or modules and their responsibilities
 3. The key data flows (how a request/event moves through the system)
 4. Any notable patterns or design decisions visible from the structure
-5. Entry points (where execution starts)`;
+5. Entry points (where execution starts)`
+      }
+    ]
+  });
 
-  const result = await model.generateContent(prompt);
-  return result.response.text();
+  return response.choices[0].message.content;
 }
 
 module.exports = { synthesizeSummaries };

@@ -1,8 +1,8 @@
 # RepoLens
 
-> Visualize and understand any GitHub codebase in minutes.
+> Visualize and understand any JS/TS GitHub codebase in minutes.
 
-RepoLens clones a public GitHub repository, maps its dependency graph, and uses AI to explain what every file does — so you can understand an unfamiliar codebase before making your first change.
+RepoLens clones a public Javascript or Typescript GitHub repository, maps its dependency graph, and uses AI to explain what every file does — so you can understand an unfamiliar codebase before making your first change.
 
 ---
 
@@ -10,13 +10,14 @@ RepoLens clones a public GitHub repository, maps its dependency graph, and uses 
 
 ![alt text](image.png)
 
+---
 
 ## Features
 
 - **Dependency graph** — visualizes how files import each other using a clean hierarchical layout powered by Dagre
 - **Click to explore** — click any node to highlight its direct imports and dependents instantly
 - **Entry point detection** — automatically identifies where execution starts using `package.json`, common filenames (`index.js`, `main.ts`, `server.js`), and structural heuristics
-- **AI file summaries** — every JS/TS file gets a concise summary powered by Google Gemini
+- **AI file summaries** — every JS/TS file gets a concise summary powered by Groq (LLaMA 3.1)
 - **Architecture overview** — a single high-level explanation of how the entire codebase is structured
 - **Search and filter** — search by filename, filter by folder, or isolate highly-connected hub files
 - **Layout toggle** — switch between top-down and left-right graph layouts
@@ -32,7 +33,7 @@ RepoLens clones a public GitHub repository, maps its dependency graph, and uses 
 | Backend | Node.js, Express |
 | Repo cloning | simple-git |
 | AST parsing | @babel/parser |
-| AI pipeline | Google Gemini API (gemini-2.5-flash-lite) |
+| AI pipeline | Groq API (llama-3.1-8b-instant) |
 
 ---
 
@@ -53,7 +54,7 @@ Detect entry points (package.json + filename heuristics + graph structure)
     ↓
 React Flow + Dagre → render interactive dependency graph
     ↓
-AI pipeline runs in background:
+AI pipeline runs in background (capped at 20 files, max 50kb each):
   chunk large files → summarize each file → synthesize architecture overview
     ↓
 Side panel shows per-file summaries + architecture overview on demand
@@ -67,13 +68,13 @@ Side panel shows per-file summaries + architecture overview on demand
 
 - Node.js 18+
 - Git installed on your system
-- A free Google Gemini API key — get one at [aistudio.google.com](https://aistudio.google.com)
+- A free Groq API key — get one at [console.groq.com](https://console.groq.com) (no credit card required)
 
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/yourusername/repolens.git
-cd repolens
+git clone https://github.com/divyank0203/Repolens.git
+cd Repolens
 ```
 
 ### 2. Backend setup
@@ -86,7 +87,7 @@ npm install
 Create a `.env` file inside the `backend/` folder:
 
 ```
-GEMINI_API_KEY=your_key_here
+GROQ_API_KEY=your_key_here
 ```
 
 Start the backend:
@@ -111,16 +112,16 @@ Frontend runs on `http://localhost:5173`
 
 ### 4. Analyze a repo
 
-Open `http://localhost:5173`, paste any public GitHub URL, and click **Analyze**.
+Open `http://localhost:5173`, paste any public Javascript or Typescript GitHub URL, and click **Analyze**.
 
-The dependency graph loads in 10–30 seconds. AI summaries load in the background.
+The dependency graph loads in 10–30 seconds. AI summaries load in the background — typically 1–2 minutes for a 20-file repo.
 
 ---
 
 ## Project Structure
 
 ```
-repolens/
+Repolens/
 ├── backend/
 │   ├── index.js                      # Express entry point
 │   ├── .env                          # API keys (not committed)
@@ -133,7 +134,7 @@ repolens/
 │       ├── buildDependencyMap.js     # Assembles the full dependency map
 │       ├── detectEntryPoints.js      # Entry point detection heuristics
 │       ├── chunkFile.js              # Splits large files for AI context limits
-│       ├── summarizeFile.js          # Per-file Gemini summarization
+│       ├── summarizeFile.js          # Per-file Groq summarization
 │       ├── synthesizeSummaries.js    # Final architecture synthesis call
 │       └── runAnalysisPipeline.js    # Orchestrates the full AI pipeline
 └── frontend/
@@ -163,16 +164,18 @@ All endpoints accept `POST` with body `{ "repoUrl": "https://github.com/user/rep
 
 ## AI Pipeline Design
 
-The AI pipeline uses **prompt chaining** — a sequence of smaller LLM calls where the output of one becomes the input of the next, rather than sending the entire codebase in a single prompt.
+The AI pipeline uses **prompt chaining** — a sequence of LLM calls where the output of one becomes the input of the next, rather than sending the entire codebase in a single prompt.
 
 ```
-Stage 1  Read and chunk files (max 300 lines per chunk)
+Stage 1  Read and chunk files (max 300 lines per chunk, skip files > 50kb)
 Stage 2  Summarize each file individually (parallel, batched at 3 concurrent)
-Stage 3  Group file summaries by folder
+Stage 3  Group file summaries by folder (pure data transform, no LLM)
 Stage 4  Single synthesis call → architecture overview
 ```
 
-This approach stays well within token limits and keeps each call focused, which produces better summaries than a single large prompt would.
+**Why Groq over Gemini:** Groq's free tier has no restrictive daily request cap, making it practical for analyzing real repos. The pipeline uses `llama-3.1-8b-instant` which is fast and produces good code summaries. If Groq rate limits are hit, the pipeline automatically reads the suggested retry delay from the error response and waits exactly that long before retrying — no wasted time from fixed backoff guesses.
+
+**File caps:** The pipeline analyzes up to 20 files per run and skips files over 50kb (typically generated or minified code). This keeps each analysis fast and within API limits.
 
 ---
 
@@ -180,9 +183,7 @@ This approach stays well within token limits and keeps each call focused, which 
 
 - Public GitHub repos only (no auth support)
 - JS and TypeScript files only (`.js`, `.jsx`, `.ts`, `.tsx`, `.mjs`)
-- Gemini free tier is rate limited — large repos may take 2–3 minutes
-- Repos with 200+ JS files may hit daily quota limits on the free tier
+- AI pipeline analyzes up to 20 files per run (largest files by relevance)
+- Groq free tier has per-minute rate limits — large repos may take 2–3 minutes due to automatic retry/backoff
 
 ---
-
-

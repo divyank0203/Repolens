@@ -18,7 +18,7 @@ export default function RepoInput({ onSubmit, loading }) {
       <input
         value={url}
         onChange={e => setUrl(e.target.value)}
-        placeholder="Paste a GitHub repo URL (e.g. facebook/react)"
+        placeholder="Paste a JS/TS GitHub repo URL"
         onKeyDown={e => e.key === 'Enter' && onSubmit(url)}
         style={{
           flex: 4,

@@ -13,10 +13,10 @@
   "description": "",
   "dependencies": {
     "@babel/parser": "^7.29.2",
-    "@google/generative-ai": "^0.24.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "groq-sdk": "^1.1.2",
     "simple-git": "^3.36.0"
   }
 }
