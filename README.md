@@ -105,4 +105,3 @@ Public GitHub repos only (no authentication)
 JS and TypeScript files only (.js, .jsx, .ts, .tsx)
 AI summaries use Gemini free tier — rate limited to ~20 files per minute
 Large repos (200+ files) may hit daily API quota limits
-![alt text](image.png)
