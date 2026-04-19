@@ -8,7 +8,7 @@ RepoLens clones a public Javascript or Typescript GitHub repository, maps its de
 
 ## Demo
 
-![alt text](image.png)
+![alt text](image-1.png)
 
 ---
 
