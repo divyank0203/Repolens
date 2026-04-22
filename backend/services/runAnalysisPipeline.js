@@ -5,9 +5,8 @@ const { summarizeFile }       = require('./summarizeFile');
 const { synthesizeSummaries } = require('./synthesizeSummaries');
 
 const PARSEABLE_EXTENSIONS = new Set(['.js', '.jsx', '.ts', '.tsx', '.mjs']);
-const CONCURRENCY  = 3;
-const MAX_FILES    = 20;
-const MAX_FILE_SIZE = 50000; // skip files larger than 50kb (usually generated)
+const CONCURRENCY   = 3;
+const MAX_FILE_SIZE = 50000; 
 
 function flattenTree(tree, basePath) {
   const files = [];
@@ -22,6 +21,18 @@ function flattenTree(tree, basePath) {
   return files;
 }
 
+function priorityScore(filePath) {
+  const normalized = filePath.replace(/\\/g, '/').toLowerCase();
+  const filename   = path.basename(normalized, path.extname(normalized));
+
+  if (['index', 'main', 'app', 'server', 'client'].includes(filename)) return 0;
+  if (/^src\/[^/]+$/.test(normalized))                                  return 1;
+  if (/\/(routes|controllers|services)\//.test(normalized))             return 2;
+  if (/\/(components|pages|views|screens)\//.test(normalized))          return 3;
+  if (/\/(utils|helpers|lib|hooks)\//.test(normalized))                 return 4;
+  if (/\.(test|spec)\.[jt]sx?$/.test(normalized))                       return 9;
+  return 5;
+}
 
 async function withRetry(fn, retries = 4, defaultDelayMs = 15000) {
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -34,12 +45,9 @@ async function withRetry(fn, retries = 4, defaultDelayMs = 15000) {
         (err.message && err.message.toLowerCase().includes('rate limit'));
 
       if (isRateLimit && attempt < retries) {
-        // Try to parse the suggested retry delay from the error message
-        // Groq includes something like "Please retry in 58.4s"
         let wait = defaultDelayMs * Math.pow(2, attempt);
         const match = err.message && err.message.match(/retry in ([\d.]+)s/i);
         if (match) {
-          // Use the suggested delay + 2s buffer
           wait = Math.ceil(parseFloat(match[1]) * 1000) + 2000;
         }
         console.log(`  Rate limited. Waiting ${(wait / 1000).toFixed(1)}s before retry ${attempt + 1}...`);
@@ -61,7 +69,6 @@ async function runInBatches(items, concurrency, asyncFn) {
     results.push(...batchResults);
     console.log(`  Summarized ${Math.min(i + concurrency, items.length)}/${items.length} files`);
 
-    
     if (i + concurrency < items.length) {
       await new Promise(res => setTimeout(res, 2000));
     }
@@ -72,7 +79,6 @@ async function runInBatches(items, concurrency, asyncFn) {
 async function runAnalysisPipeline(repoRoot, fileTree, repoUrl) {
   console.log('\n=== RepoLens AI Pipeline ===');
 
-  // --- Stage 1: Chunking ---
   console.log('\n[Stage 1] Chunking files...');
   const allFiles = flattenTree(fileTree, repoRoot);
 
@@ -82,9 +88,13 @@ async function runAnalysisPipeline(repoRoot, fileTree, repoUrl) {
       try { return fs.statSync(f).size < MAX_FILE_SIZE; }
       catch { return false; }
     })
-    .slice(0, MAX_FILES);
+    .sort((a, b) => {
+      const ra = path.relative(repoRoot, a);
+      const rb = path.relative(repoRoot, b);
+      return priorityScore(ra) - priorityScore(rb);
+    });
 
-  console.log(`  Found ${jsFiles.length} JS/TS files (capped at ${MAX_FILES})`);
+  console.log(`  Found ${jsFiles.length} JS/TS files`);
 
   const fileChunkGroups = jsFiles.map(filePath => {
     const chunks = chunkFile(filePath);
@@ -94,7 +104,6 @@ async function runAnalysisPipeline(repoRoot, fileTree, repoUrl) {
     }));
   }).filter(group => group.length > 0);
 
-  // --- Stage 2: Per-file summarization ---
   console.log(`\n[Stage 2] Summarizing ${fileChunkGroups.length} files (concurrency: ${CONCURRENCY})...`);
 
   const summaryResults = await runInBatches(
@@ -106,19 +115,14 @@ async function runAnalysisPipeline(repoRoot, fileTree, repoUrl) {
   const fileSummaries = summaryResults.filter(Boolean);
   console.log(`  Got ${fileSummaries.length} file summaries`);
 
-  // --- Stage 3: Group by folder (pure transform, no LLM call) ---
   console.log('\n[Stage 3] Grouping summaries by folder...');
 
-  // --- Stage 4: Final synthesis ---
   console.log('\n[Stage 4] Synthesizing architecture overview...');
   const architectureOverview = await synthesizeSummaries(fileSummaries, repoUrl);
 
   console.log('\n=== Pipeline complete ===\n');
 
-  return {
-    fileSummaries,
-    architectureOverview,
-  };
+  return { fileSummaries, architectureOverview };
 }
 
 module.exports = { runAnalysisPipeline };
